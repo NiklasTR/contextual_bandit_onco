@@ -1,0 +1,62 @@
+---
+title: "R Learner"
+author: "Niklas Rindtorff"
+date: "4/3/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(rlearner)
+library(randomizr)
+library(here)
+```
+
+```{r}
+allocation <- read_csv(here("data/allocation.csv")) %>% mutate(cosmic_id = as.character(cosmic_id))
+covariates <- read_csv(here("data/covariates.csv"))
+
+load(here("data/crxg_map_imputed.Rdata"))
+load(here("data/mutation.Rdata"))
+load(here("data/expression.Rdata"))
+load(here("data/cnv.Rdata"))
+```
+
+Similar to many causal inference problems, we have three datasets: unit covariates *X*, assignment *w* and responses *y*. 
+
+First, I create a harmonized group of datasets. 
+
+```{r}
+# I define my covariate data
+X <- mutation %>% mutate(cosmic_id = as.character(cosmic_id)) %>% 
+ inner_join(expression %>% mutate(cosmic_id = as.character(cosmic_id))) %>% 
+  inner_join(cnv %>% mutate(cosmic_id = as.character(cosmic_id))) %>% 
+  inner_join(covariates %>% mutate(cosmic_id = as.character(cosmic_id)))
+
+# I filter the dataset so the data is complete for every unit
+y_complete <- crxg_map_imputed %>% 
+  semi_join(X, by = "cosmic_id") %>% 
+  semi_join(allocation, by = "cosmic_id")
+
+X <- X %>% 
+  semi_join(crxg_map_imputed, by = "cosmic_id") %>% 
+  semi_join(allocation, by = "cosmic_id")
+
+w <- allocation %>% 
+  semi_join(X, by = "cosmic_id") %>% 
+  semi_join(crxg_map_imputed, by = "cosmic_id")
+
+```
+
+I am saving the files as .csvs so they can be uploaded to our project google Drive
+
+```{r}
+write_csv(X, here("local_data/X.csv"))
+write_csv(y_complete, here("local_data/y.csv"))
+write_csv(w, here("local_data/w.csv"))
+```
+
